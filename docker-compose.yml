@@ -1,0 +1,34 @@
+# LiftSync — local development database
+#
+# Run:      docker compose up -d
+# Connect:  psql postgresql://liftsync:devpassword@localhost:5433/liftsync
+# Load:     docker compose exec -T db psql -U liftsync -d liftsync < backend/db/schema.sql
+# Wipe:     docker compose down -v      (the -v deletes the volume = fresh DB)
+#
+# Port 5433 on the host, not 5432, so this never collides with a
+# Postgres you may already have installed natively.
+
+services:
+  db:
+    image: postgres:16
+    container_name: liftsync-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: liftsync
+      POSTGRES_PASSWORD: devpassword     # local only — never a real secret
+      POSTGRES_DB: liftsync
+    ports:
+      - "5433:5432"
+    volumes:
+      - liftsync_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # Compose will not report the service healthy until Postgres
+      # actually accepts connections. Prevents "connection refused"
+      # races when your API container starts alongside it later.
+      test: ["CMD-SHELL", "pg_isready -U liftsync -d liftsync"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  liftsync_pgdata:
