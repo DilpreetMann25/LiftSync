@@ -10,6 +10,7 @@ from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
 from app.db import get_connection
+from app.dependencies import get_current_user
 from app.schemas import ExerciseOut, VolumePoint
 
 # prefix is prepended to every path below, so the route defined as
@@ -54,78 +55,45 @@ def exercise_volume(
     exercise_id: int,
     weeks: int = Query(8, ge=1, le=52, description="How far back to look"),
     conn: Connection = Depends(get_connection),
+    current_user: dict = Depends(get_current_user),
 ) -> list[dict]:
-    """Per-session working volume for one exercise.
+    """Per-session working volume for one exercise, for the logged-in user.
 
-    ================================================================
-    YOUR TURN — write the SQL below.
-    ================================================================
-
-    You already wrote this query in psql. It was:
-
+    Warmup sets are excluded. Volume is weight x reps summed across
+    every working set in the session.
+    """
+    # NOTE ON :placeholders -- never build SQL with f-strings.
+    # f"... WHERE exercise_id = {exercise_id}" would let an attacker
+    # close the quote and append their own SQL (`x'; DROP TABLE users; --`).
+    # With placeholders the query and the values travel to Postgres
+    # separately: Postgres parses the query first, then slots the
+    # values in as data, so a value can never become executable SQL.
+    # Rule with no exceptions: values go in the params dict below.
+    sql = text(
+        """
         SELECT performed_on,
                SUM(volume_kg) AS session_volume,
                MAX(weight_kg) AS top_weight
         FROM v_set_details
-        WHERE exercise_name = 'Overhead Press'
+        WHERE exercise_id = :exercise_id
+          AND user_id = :user_id
+          AND performed_on >= CURRENT_DATE - make_interval(weeks => :weeks)
           AND is_warmup = false
         GROUP BY performed_on
         ORDER BY performed_on;
-
-    Three changes to make it work here:
-
-    1. Filter by exercise_id, not exercise_name -- the URL gives you
-       an ID. The view already exposes an exercise_id column.
-
-    2. Limit it to the last `weeks` weeks:
-           AND performed_on >= CURRENT_DATE - make_interval(weeks => :weeks)
-
-    3. Use :exercise_id and :weeks as placeholders, and pass the real
-       values in the dict below.
-
-    ---------------------------------------------------------------
-    WHY PLACEHOLDERS INSTEAD OF f-STRINGS -- READ THIS ONE
-    ---------------------------------------------------------------
-    It is tempting to write:
-
-        f"... WHERE exercise_id = {exercise_id}"
-
-    Never do this. If a value reaching that f-string is ever attacker
-    controlled, they can close your quote and append their own SQL:
-
-        /volume?name=x'; DROP TABLE users; --
-
-    That is SQL injection, and it is still one of the most common
-    ways real systems get breached.
-
-    With :placeholders, the driver sends the query and the values
-    over the wire SEPARATELY. Postgres parses the query first, then
-    slots values in as data. A value can never become executable SQL,
-    no matter what it contains.
-
-    Rule with no exceptions: values go in the params dict, never into
-    the query string.
-    """
-    sql = text(
         """
-        -- TODO: your query here
-        SELECT performed_on,
-                               SUM(volume_kg) AS session_volume,
-                               MAX(weight_kg) AS top_weight
-                        FROM v_set_details
-                        WHERE exercise_id = :exercise_id
-                          AND performed_on >= CURRENT_DATE - make_interval(weeks => :weeks)
-                          AND is_warmup = false
-                        GROUP BY performed_on
-                        ORDER BY performed_on;
-        """
-        
-
     )
 
     rows = conn.execute(
         sql,
-        {"exercise_id": exercise_id, "weeks": weeks},
+        {
+            "exercise_id": exercise_id,
+            "weeks": weeks,
+            # The scoping that makes this endpoint safe. Without it,
+            # any logged-in user could read every other user's
+            # training history.
+            "user_id": current_user["id"],
+        },
     ).mappings().all()
 
     if not rows:

@@ -27,7 +27,47 @@ shared model would make leaking it a one-line mistake.
 
 from datetime import date
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
+
+
+# ---------------------------------------------------------------
+# Auth
+# ---------------------------------------------------------------
+class UserIn(BaseModel):
+    """Registration payload — what a new user SENDS."""
+
+    # EmailStr rejects anything that is not a valid address before
+    # your code runs. One annotation replaces a regex you would
+    # otherwise write badly.
+    email: EmailStr
+    password: str = Field(..., min_length=8, max_length=72)
+    display_name: str = Field(..., min_length=1, max_length=100)
+    height_cm: float | None = Field(None, gt=0, lt=300)
+
+
+class UserOut(BaseModel):
+    """User data the API RETURNS.
+
+    Note what is absent: password, password_hash. This is why In and
+    Out are separate classes. Sharing one model between them is how
+    password hashes end up in JSON responses -- and because Pydantic
+    drops undeclared fields, leaking one here is not an oversight you
+    can make by accident.
+    """
+
+    id: int
+    email: EmailStr
+    display_name: str
+    height_cm: float | None = None
+
+
+class Token(BaseModel):
+    """What the login endpoint returns."""
+
+    access_token: str
+    # "bearer" is the standard scheme: the client sends
+    # `Authorization: Bearer <token>` on subsequent requests.
+    token_type: str = "bearer"
 
 
 class ExerciseOut(BaseModel):

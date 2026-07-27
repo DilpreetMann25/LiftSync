@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import os
 import random
+import sys
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -36,7 +37,17 @@ import psycopg
 from dotenv import load_dotenv
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+BACKEND_DIR = Path(__file__).resolve().parents[1]
 load_dotenv(REPO_ROOT / ".env")
+
+# This script lives in backend/scripts/, so Python puts THAT directory
+# on the import path -- not backend/. Adding backend/ lets us reuse
+# app.security instead of duplicating the hashing logic here. Two
+# implementations of password hashing in one repo is how they drift
+# apart and one of them ends up weaker.
+sys.path.insert(0, str(BACKEND_DIR))
+
+from app.security import hash_password  # noqa: E402  (import after sys.path fix)
 
 # Fixed seed => identical data every run. Reproducibility matters:
 # without it, a query that works today might fail tomorrow and you
@@ -44,6 +55,17 @@ load_dotenv(REPO_ROOT / ".env")
 random.seed(42)
 
 DEMO_EMAIL = "demo@liftsync.app"
+
+# A real, properly hashed password -- so anyone who clones this repo
+# can log in and see 8 weeks of data immediately, instead of having to
+# register and then wonder why every endpoint returns 404.
+#
+# Committing a password in plaintext is normally unforgivable. It is
+# fine here for the same reason `devpassword` in docker-compose.yml is
+# fine: this account only ever exists in a local, disposable database
+# that this script created. It is demo furniture, not a credential.
+DEMO_PASSWORD = "liftsync-demo-2026"
+
 WEEKS = 8
 SESSIONS_PER_WEEK = 4
 
@@ -151,7 +173,7 @@ def main() -> None:
             VALUES (%s, %s, %s, %s, 'metric')
             RETURNING id;
             """,
-            (DEMO_EMAIL, "$2b$12$devplaceholdernotarealhash", "Demo Lifter", 178.0),
+            (DEMO_EMAIL, hash_password(DEMO_PASSWORD), "Demo Lifter", 178.0),
         )
         user_id = cur.fetchone()[0]
 
@@ -267,9 +289,12 @@ def main() -> None:
 
         conn.commit()
 
-    print(f"Seeded {n_workouts} workouts and {n_sets} sets for {DEMO_EMAIL}")
+    print(f"Seeded {n_workouts} workouts and {n_sets} sets.")
     print(f"Range: {start} to {end}")
-    print("Overhead press plateaus at 60kg from week 5 onward.")
+    print("Overhead press plateaus at 60kg from week 5 onward.\n")
+    print("Log in at http://localhost:8000/docs with:")
+    print(f"  username: {DEMO_EMAIL}")
+    print(f"  password: {DEMO_PASSWORD}")
 
 
 if __name__ == "__main__":
