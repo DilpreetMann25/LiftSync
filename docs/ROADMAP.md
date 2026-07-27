@@ -32,7 +32,7 @@
 ---
 
 ## Phase 1 — Database Design ⭐
-**~Week 1–2 · IN PROGRESS**
+**COMPLETE**
 
 The load-bearing phase. A weak schema poisons everything downstream, and it's what interviewers probe hardest.
 
@@ -40,12 +40,12 @@ The load-bearing phase. A weak schema poisons everything downstream, and it's wh
 - [x] Primary keys, foreign keys, `ON DELETE` behaviour, `CHECK` constraints
 - [x] Correct types: `NUMERIC` not `FLOAT`; `DATE` vs `TIMESTAMPTZ`
 - [x] Indexes — composite `(user_id, date)` on log tables
-- [ ] Seed data: muscle groups, exercises, weighted muscle mappings
-- [ ] Alembic wired up, `schema.sql` converted to migration `0001`
-- [ ] ~8 weeks of realistic fake training data
+- [x] Seed data: 15 muscle groups, 15 exercises, weighted muscle mappings
+- [x] Alembic wired up — migrations `0001` schema, `0002` exercises, `0003` food items
+- [x] `seed_dev_data.py` — 8 weeks of training data with a deliberate OHP plateau
+- [x] **Checkpoint passed:** raw SQL surfacing the plateau (60kg × 9 sessions)
 
-**Learn:** normalization to 3NF, why `exercises` is a shared dictionary table, cardinality, index cost/benefit.
-**Checkpoint:** raw SQL, no ORM — *total non-warmup volume per session for the last 8 weeks, weighted by shoulder contribution, ordered by date.*
+**Learned:** normalization to 3NF, partial unique indexes, generated columns, `GROUP BY` semantics, multi-table `JOIN`s and row multiplication, migrations vs. seed scripts.
 
 ### Key design decisions made
 
@@ -58,6 +58,11 @@ The load-bearing phase. A weak schema poisons everything downstream, and it's wh
 | All weights in kg | Unit conversion is presentation, never storage |
 | `NUMERIC` over `FLOAT` | Floats can't represent 82.5 exactly; error compounds in `SUM()` |
 | `sets.volume_kg` generated | Computed once on write, not on every analytics read |
+| Reference data in migrations, fake data in a script | Muscle groups ship to production; demo lifters must not |
+
+### Known open issue
+
+**Bodyweight exercises compute to zero volume.** Pull-ups are logged at 0kg added load, so `weight × reps` = 0 and they contribute nothing to lat volume. Needs resolving in Phase 3 — likely by adding the user's logged bodyweight to the load.
 
 ---
 
