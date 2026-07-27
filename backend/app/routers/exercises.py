@@ -10,6 +10,7 @@ from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
 from app.db import get_connection
+from app.schemas import ExerciseOut, VolumePoint
 
 # prefix is prepended to every path below, so the route defined as
 # "/{exercise_id}/volume" is served at
@@ -17,12 +18,22 @@ from app.db import get_connection
 router = APIRouter(prefix="/api/v1/exercises", tags=["exercises"])
 
 
-@router.get("")
+@router.get("", response_model=list[ExerciseOut])
 def list_exercises(conn: Connection = Depends(get_connection)) -> list[dict]:
     """Every global exercise, so you can find the ID you need.
 
-    .mappings() makes each row behave like a dict instead of a tuple,
-    which is what lets FastAPI serialise it straight to JSON.
+    `response_model=list[ExerciseOut]` is the new part. FastAPI now:
+      1. validates every row against ExerciseOut before sending it,
+      2. drops any column not declared there,
+      3. publishes the shape in /docs and /openapi.json.
+
+    Point 2 is a security feature, not a convenience. When this table
+    eventually holds columns you do not want public, forgetting to
+    strip them is no longer possible -- anything undeclared simply
+    does not go out.
+
+    .mappings() makes each row behave like a dict rather than a tuple,
+    which is what Pydantic validates against.
     """
     rows = conn.execute(
         text(
@@ -38,7 +49,7 @@ def list_exercises(conn: Connection = Depends(get_connection)) -> list[dict]:
     return [dict(row) for row in rows]
 
 
-@router.get("/{exercise_id}/volume")
+@router.get("/{exercise_id}/volume", response_model=list[VolumePoint])
 def exercise_volume(
     exercise_id: int,
     weeks: int = Query(8, ge=1, le=52, description="How far back to look"),
