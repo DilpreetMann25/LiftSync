@@ -174,6 +174,52 @@ class WorkoutSummary(BaseModel):
     total_volume_kg: float
 
 
+# ---------------------------------------------------------------
+# Analytics
+# ---------------------------------------------------------------
+class ProgressionPoint(BaseModel):
+    """One session's strength numbers for a single lift."""
+
+    performed_on: date
+    e1rm: float = Field(..., description="Estimated 1RM from the best set (Epley)")
+    rolling_e1rm: float = Field(..., description="3-session rolling average")
+    change_from_previous: float | None = Field(
+        None, description="e1RM change since last session; null for the first"
+    )
+    best_e1rm_to_date: float
+    session_volume: float
+    top_weight: float
+
+
+class PlateauReport(BaseModel):
+    """A lift that has stopped progressing."""
+
+    exercise_id: int
+    exercise_name: str
+    category: str
+    # Surfaced so the user can see WHY a lift was judged on a longer
+    # clock. An unexplained threshold looks arbitrary; a visible one
+    # looks considered.
+    stall_weeks_applied: int = Field(
+        ..., description="Isolation lifts are given double the compound window"
+    )
+    best_e1rm: float
+    best_achieved_on: date
+    weeks_since_best: float
+    recent_best_e1rm: float
+    recent_sessions: int
+    last_trained_on: date
+
+
+class MuscleVolumePoint(BaseModel):
+    """Weighted volume for one muscle group in one week."""
+
+    week: date
+    muscle_group: str
+    weighted_volume: float
+    working_sets: int
+
+
 class VolumePoint(BaseModel):
     """One training session's working volume for a single exercise."""
 
