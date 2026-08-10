@@ -271,7 +271,13 @@ def weekly_muscle_volume(
               AND s.performed_on >= date_trunc('week', CURRENT_DATE)
                                     - make_interval(weeks => :weeks)
               AND s.performed_on <  date_trunc('week', CURRENT_DATE)
-              AND (:muscle_group IS NULL OR m.name = :muscle_group)
+              -- The CAST is required, not stylistic. Postgres infers a
+              -- parameter's type from context, and `$1 IS NULL` gives
+              -- it no context at all -- it fails with "could not
+              -- determine data type of parameter". Naming the type
+              -- explicitly is the fix.
+              AND (CAST(:muscle_group AS text) IS NULL
+                   OR m.name = CAST(:muscle_group AS text))
             GROUP BY week, m.name
             ORDER BY week, m.name;
             """
