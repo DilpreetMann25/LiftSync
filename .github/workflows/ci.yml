@@ -1,0 +1,86 @@
+# Continuous Integration — runs the test suite on every push.
+#
+# GitHub reads any .yml file under .github/workflows/ and runs it on a
+# fresh Ubuntu virtual machine it provisions and destroys per run. That
+# clean slate is the point: "works on my machine" stops being possible,
+# because the machine is new every time and has nothing of yours on it.
+
+name: CI
+
+# WHEN to run.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    # A SERVICE CONTAINER: GitHub starts Postgres alongside the job,
+    # the same way docker-compose.yml does locally. Same image, same
+    # credentials -- so the environment your tests run against in CI
+    # matches the one on your laptop.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: liftsync
+          POSTGRES_PASSWORD: devpassword
+          POSTGRES_DB: liftsync
+        ports:
+          # 5432 here, not 5433. The port shift locally exists only to
+          # avoid colliding with a native Postgres install; the runner
+          # has nothing to collide with.
+          - 5432:5432
+        # The same race condition you hit locally: the container starts
+        # before Postgres is ready to accept connections. GitHub will
+        # not begin the steps until this health check passes.
+        options: >-
+          --health-cmd "pg_isready -U liftsync"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    # There is no .env file in CI -- it is gitignored, correctly.
+    # These take its place. Values are throwaway, matching a database
+    # that exists for ninety seconds and is then destroyed.
+    #
+    # A real secret would go in GitHub's encrypted secrets and be
+    # referenced as ${{ secrets.NAME }}, never written here.
+    env:
+      DATABASE_URL: postgresql+psycopg://liftsync:devpassword@localhost:5432/liftsync
+      JWT_SECRET_KEY: ci-only-signing-key-not-a-secret
+      ENVIRONMENT: development
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          # Cache pip downloads between runs, keyed on requirements.txt.
+          # Change a dependency and the cache invalidates itself.
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # This is why `pip freeze > requirements.txt` mattered. The runner
+      # has none of your packages; that file is the only record of what
+      # this project needs.
+
+      - name: Run tests
+        working-directory: backend
+        run: pytest
+        # conftest.py creates liftsync_test and runs migrations against
+        # it, exactly as it does locally. So this step also verifies
+        # that your migrations build a working schema from empty --
+        # every push, on a machine that has never seen your database.

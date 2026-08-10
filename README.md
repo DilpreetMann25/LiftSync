@@ -1,5 +1,7 @@
 # LiftSync
 
+[![CI](https://github.com/DilpreetMann25/LiftSync/actions/workflows/ci.yml/badge.svg)](https://github.com/DilpreetMann25/LiftSync/actions/workflows/ci.yml)
+
 AI-driven strength and nutrition tracking. Logs training, correlates macronutrient intake with lifting performance, and uses an LLM agent that queries the database directly to diagnose plateaus and generate corrective programming blocks.
 
 Built as a portfolio project demonstrating relational schema design, REST API development, agentic AI integration, and cloud deployment.
