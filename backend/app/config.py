@@ -31,6 +31,17 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60")
 if not JWT_SECRET_KEY:
     raise RuntimeError("JWT_SECRET_KEY is not set. See .env.example.")
 
+# --- AI coach --------------------------------------------------
+# "gemini" for the real model, "fake" for the scripted test double.
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+AI_MODEL = os.getenv("AI_MODEL", "gemini-2.5-flash")
+
+# Hard ceiling on how many times the agent may call a tool before we
+# stop it. A model that keeps requesting data in a loop would run up
+# tokens and hang the request; this bounds both.
+AI_MAX_TOOL_CALLS = int(os.getenv("AI_MAX_TOOL_CALLS", "8"))
+
 # Refuse to boot in production with the placeholder value. A check
 # like this costs nothing and prevents a genuinely catastrophic
 # deployment mistake.

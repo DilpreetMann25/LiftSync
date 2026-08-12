@@ -175,6 +175,62 @@ class WorkoutSummary(BaseModel):
 
 
 # ---------------------------------------------------------------
+# AI coach
+# ---------------------------------------------------------------
+# These models are doing double duty. They validate the response as
+# usual -- AND their JSON Schema is sent to the model as the required
+# output shape. Change a field here and the model's instructions
+# change with it, automatically.
+
+
+class CoachQuestion(BaseModel):
+    question: str = Field(..., min_length=5, max_length=1000)
+
+
+class ProgramExercise(BaseModel):
+    exercise_name: str
+    sets: int = Field(..., ge=1, le=20)
+    # A string, not an int: real programming says "5" but also "8-10"
+    # and "AMRAP". Forcing a number here would throw away information
+    # a lifter needs.
+    reps: str
+    intensity: str = Field(..., description="e.g. '62.5kg', '85% of e1RM', 'RPE 8'")
+    notes: str | None = None
+
+
+class ProgramWeek(BaseModel):
+    week_number: int = Field(..., ge=1, le=12)
+    focus: str = Field(..., description="What this week is trying to achieve")
+    exercises: list[ProgramExercise]
+
+
+class CoachProgram(BaseModel):
+    """A generated training block."""
+
+    diagnosis: str = Field(..., description="What the coach concluded, in plain language")
+    # Persisted and shown to the user. An agent that cannot explain
+    # itself is one you cannot debug and the user cannot trust.
+    reasoning: str = Field(..., description="Why, referencing the actual data")
+    target_exercise: str | None = None
+    weeks: list[ProgramWeek]
+    nutrition_note: str | None = None
+
+
+class CoachResponse(BaseModel):
+    """What the endpoint returns: the program plus an audit trail."""
+
+    id: int
+    question: str
+    program: CoachProgram
+    # Which tools the agent chose to call. This is the difference
+    # between a black box and something you can inspect.
+    tools_used: list[str]
+    model: str
+    input_tokens: int
+    output_tokens: int
+
+
+# ---------------------------------------------------------------
 # Analytics
 # ---------------------------------------------------------------
 class ProgressionPoint(BaseModel):

@@ -27,7 +27,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from dotenv import load_dotenv
+from dotenv import load_dotenv\
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 REPO_ROOT = BACKEND_DIR.parent

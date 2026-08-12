@@ -242,6 +242,115 @@ def detect_plateaus(
     return [dict(row) for row in rows]
 
 
+def nutrition_summary(conn: Connection, user_id: int, days: int = 28) -> dict:
+    """Average daily macros, split by weekday vs weekend.
+
+    The split exists because the pattern it exposes is real and
+    invisible in a single average: many lifters eat well Monday to
+    Friday and lose 50g of protein at the weekend. An overall mean of
+    170g hides "185 on training days, 135 otherwise".
+    """
+    totals = conn.execute(
+        text(
+            """
+            SELECT COUNT(*)                       AS days_logged,
+                   ROUND(AVG(calories))           AS avg_calories,
+                   ROUND(AVG(protein_g), 1)       AS avg_protein_g,
+                   ROUND(AVG(carbs_g), 1)         AS avg_carbs_g,
+                   ROUND(AVG(fat_g), 1)           AS avg_fat_g,
+                   ROUND(AVG(protein_g) FILTER (
+                       WHERE EXTRACT(ISODOW FROM logged_on) <= 5
+                   ), 1) AS avg_protein_weekday,
+                   ROUND(AVG(protein_g) FILTER (
+                       WHERE EXTRACT(ISODOW FROM logged_on) >= 6
+                   ), 1) AS avg_protein_weekend
+            FROM nutrition_logs
+            WHERE user_id = :user_id
+              AND logged_on >= CURRENT_DATE - make_interval(days => :days);
+            """
+        ),
+        {"user_id": user_id, "days": days},
+    ).mappings().one()
+
+    # ISODOW numbers Monday=1 through Sunday=7, so <=5 is the working
+    # week. Plain DOW starts at Sunday=0, which would silently put
+    # Sunday in the "weekday" bucket.
+
+    top_sources = conn.execute(
+        text(
+            """
+            SELECT f.name,
+                   ROUND(SUM(ne.quantity_g * f.protein_per_100g / 100.0), 1)
+                       AS total_protein_g
+            FROM nutrition_entries ne
+            JOIN nutrition_logs nl ON nl.id = ne.nutrition_log_id
+            JOIN food_items f      ON f.id = ne.food_item_id
+            WHERE nl.user_id = :user_id
+              AND nl.logged_on >= CURRENT_DATE - make_interval(days => :days)
+              AND f.is_protein_source
+            GROUP BY f.name
+            ORDER BY total_protein_g DESC
+            LIMIT 5;
+            """
+        ),
+        {"user_id": user_id, "days": days},
+    ).mappings().all()
+
+    return {
+        "days_requested": days,
+        **{k: (float(v) if v is not None else None) for k, v in totals.items()},
+        "top_protein_sources": [dict(row) for row in top_sources],
+    }
+
+
+def bodyweight_trend(conn: Connection, user_id: int, weeks: int = 8) -> dict:
+    """Weekly average bodyweight and the net change over the window.
+
+    Weekly averages, not raw weigh-ins. Day-to-day bodyweight swings by
+    a kilo or more on water and food timing alone; averaging turns
+    noise into a trend you can actually act on.
+    """
+    weekly = conn.execute(
+        text(
+            """
+            SELECT date_trunc('week', measured_on)::date AS week,
+                   ROUND(AVG(weight_kg), 2)              AS avg_weight_kg,
+                   COUNT(*)                              AS weigh_ins
+            FROM bodyweight_logs
+            WHERE user_id = :user_id
+              AND measured_on >= date_trunc('week', CURRENT_DATE)
+                                 - make_interval(weeks => :weeks)
+              AND measured_on <  date_trunc('week', CURRENT_DATE)
+            GROUP BY week
+            ORDER BY week;
+            """
+        ),
+        {"user_id": user_id, "weeks": weeks},
+    ).mappings().all()
+
+    points = [dict(row) for row in weekly]
+
+    change = None
+    if len(points) >= 2:
+        change = round(
+            float(points[-1]["avg_weight_kg"]) - float(points[0]["avg_weight_kg"]), 2
+        )
+
+    return {
+        "weeks_requested": weeks,
+        "weekly_average_kg": points,
+        "net_change_kg": change,
+        # Direction stated explicitly so the model does not have to
+        # infer it from a sign, which it sometimes gets backwards.
+        "direction": (
+            None if change is None
+            else "gaining" if change > 0.5
+            else "losing" if change < -0.5
+            else "stable"
+        ),
+    }
+
+
 def weekly_muscle_volume(
     conn: Connection, user_id: int, weeks: int, muscle_group: str | None = None
 ) -> list[dict]:

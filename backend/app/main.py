@@ -15,7 +15,7 @@ from sqlalchemy.engine import Connection
 
 from app.config import CORS_ORIGINS, ENVIRONMENT
 from app.db import get_connection
-from app.routers import analytics, auth, exercises, workouts
+from app.routers import analytics, auth, coach, exercises, workouts
 
 app = FastAPI(
     title="LiftSync API",
@@ -40,6 +40,7 @@ app.include_router(auth.router)
 app.include_router(exercises.router)
 app.include_router(workouts.router)
 app.include_router(analytics.router)
+app.include_router(coach.router)
 
 
 @app.get("/api/v1/health", tags=["system"])
