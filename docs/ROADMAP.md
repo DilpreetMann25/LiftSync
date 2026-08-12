@@ -100,7 +100,9 @@ What makes this a fitness *intelligence* app rather than a form with a database.
 ---
 
 ## Phase 4 — Frontend
-**~Week 5–6**
+**COMPLETE** — React + Vite + Tailwind v4 + Recharts
+
+> **Worth remembering.** `useApi` guards against out-of-order responses: switch exercises quickly and two requests are in flight, and if the first resolves last it overwrites newer data with stale results. The hook tracks a request id so only the latest can set state.
 
 - React + Vite + Tailwind
 - Fast workout logging UI — must be usable one-handed between sets

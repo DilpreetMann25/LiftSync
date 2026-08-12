@@ -23,6 +23,7 @@ dist/
 build/
 .vite/
 npm-debug.log*
+package-lock.json.bak
 
 # --- Editors / OS ---
 .DS_Store

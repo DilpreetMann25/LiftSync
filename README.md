@@ -79,6 +79,20 @@ To use the AI coach, add a free [Google AI Studio](https://aistudio.google.com) 
 
 Everything else works without a key.
 
+### Frontend
+
+In a second terminal, with the backend still running:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open **http://localhost:5173** and click *Explore the demo account*.
+
+Vite proxies `/api` to `localhost:8000`, so the browser sees one origin in development and there is no CORS involved.
+
 ---
 
 ## The AI coach
@@ -141,7 +155,7 @@ The interesting decisions, and why:
 | 1 — Database design, migrations, seed data | Complete |
 | 2 — Backend API, auth, CRUD | Complete |
 | 3 — Analytics layer (e1RM, plateau detection) | Complete |
-| 4 — React frontend | Not started |
+| 4 — React frontend | Complete |
 | 5 — Autonomous AI coach | Complete |
 | 6 — AWS deployment (EC2 + RDS) | Not started |
 | 7 — CI/CD and polish | CI complete |
@@ -158,6 +172,13 @@ Detailed roadmap: [`docs/ROADMAP.md`](docs/ROADMAP.md)
 LiftSync/
 ├── docker-compose.yml          Local Postgres
 ├── docs/ROADMAP.md             Build plan
+├── frontend/
+│   └── src/
+│       ├── lib/api.js          Single API client, token handling
+│       ├── lib/useApi.js       Data-loading hook with race protection
+│       ├── context/            Auth state
+│       ├── components/         UI primitives, layout, charts
+│       └── pages/              Auth, Dashboard, Progress, Log, Coach
 └── backend/
     ├── app/
     │   ├── main.py             FastAPI entry point
