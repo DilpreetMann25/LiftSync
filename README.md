@@ -69,7 +69,46 @@ password: liftsync-demo-2026
 
 Seeded with 8 weeks of training data containing a deliberate overhead press plateau — weight frozen at 60kg for the final three weeks while bench and squat continue progressing. This is the scenario the AI coach is built to diagnose.
 
-Click **Authorize** in `/docs`, then try `GET /api/v1/exercises/3/volume?weeks=8`.
+Click **Authorize** in `/docs`, then try `GET /api/v1/analytics/plateaus` — the overhead press should be flagged.
+
+To use the AI coach, add a free [Google AI Studio](https://aistudio.google.com) key to `.env` as `GEMINI_API_KEY`, then `POST /api/v1/coach/ask` with:
+
+```json
+{"question": "I'm plateauing on my overhead press at 60kg. What should I do?"}
+```
+
+Everything else works without a key.
+
+---
+
+## The AI coach
+
+`POST /api/v1/coach/ask` is the feature the rest of the project exists to support. It is a **tool-calling agent**, not a prompt with data pasted into it.
+
+The model receives a set of function descriptions and decides for itself what to investigate. Asked *"I'm plateauing on my overhead press at 60kg"*, it ran seven tool calls unprompted:
+
+```
+detect_plateaus          → is the claim actually true?
+exercise_progression     → how has it been trending?
+muscle_group_volume ×2   → front delts, then triceps
+bodyweight_trend         → gaining or cutting?
+nutrition_summary        → eating enough to recover?
+list_available_exercises → what can I prescribe?
+```
+
+It confirmed the plateau before accepting the premise, ruled out a caloric deficit, surfaced a weekend protein drop nobody asked about (184g weekdays vs 128g weekends), and produced a four-week block using only movements in the user's exercise library.
+
+**Design decisions worth noting:**
+
+**The model never executes anything.** It emits a request; `app/agent.py` decides whether to honour it. Every tool receives `conn` and `user_id` as its first arguments, supplied by application code — so no argument the model could produce would read another user's data.
+
+**Tool errors are returned as data, not raised.** An unknown exercise yields `{"error": "No exercise named 'Military Press'. Call list_available_exercises."}`, letting the model correct itself. An exception would abandon the investigation over a recoverable mistake.
+
+**Output is schema-enforced.** `CoachProgram.model_json_schema()` is sent as the required response shape and the reply is validated before storage. Malformed output is a 502, not a corrupt record.
+
+**Every run is auditable.** `ai_programs` stores the prompt, the tools called, the exact data the model saw, the generated block, and token counts — so "why did it say that?" is always answerable.
+
+**The provider is abstracted.** `app/llm.py` is the only file that knows the vendor. When Google replaced `generateContent` with the Interactions API mid-build, the rewrite touched that one file; the agent logic was untouched. The same seam lets the entire test suite run against a scripted `FakeProvider` with no API key and no cost.
 
 ---
 
@@ -100,12 +139,14 @@ The interesting decisions, and why:
 | Phase | Status |
 | --- | --- |
 | 1 — Database design, migrations, seed data | Complete |
-| 2 — Backend API, auth, CRUD | In progress |
-| 3 — Analytics layer (e1RM, plateau detection) | Not started |
+| 2 — Backend API, auth, CRUD | Complete |
+| 3 — Analytics layer (e1RM, plateau detection) | Complete |
 | 4 — React frontend | Not started |
-| 5 — Autonomous AI coach | Not started |
+| 5 — Autonomous AI coach | Complete |
 | 6 — AWS deployment (EC2 + RDS) | Not started |
-| 7 — CI/CD and polish | Not started |
+| 7 — CI/CD and polish | CI complete |
+
+57 tests, no network calls, running on every push.
 
 Detailed roadmap: [`docs/ROADMAP.md`](docs/ROADMAP.md)
 

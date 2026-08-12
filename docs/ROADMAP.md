@@ -67,7 +67,7 @@ The load-bearing phase. A weak schema poisons everything downstream, and it's wh
 ---
 
 ## Phase 2 — Backend API
-**~Week 2–4 · skeleton scaffolded, endpoints written by hand**
+**COMPLETE** (nutrition and bodyweight CRUD deferred — the pattern is established, and the AI coach reads that data directly)
 
 - FastAPI layout: routers, services, repositories
 - SQLAlchemy 2.0 models mapped to the schema
@@ -82,7 +82,9 @@ The load-bearing phase. A weak schema poisons everything downstream, and it's wh
 ---
 
 ## Phase 3 — Analytics Layer
-**~Week 4–5 · written by hand**
+**COMPLETE**
+
+> **Finding worth keeping.** The first plateau detector used one threshold for every lift and flagged Face Pull and Dumbbell Lateral Raise — both progressing exactly on schedule, just on a monthly cycle. Isolation movements now get double the window. `test_isolation_lifts_get_a_longer_window` locks that in.
 
 What makes this a fitness *intelligence* app rather than a form with a database.
 
@@ -111,7 +113,9 @@ What makes this a fitness *intelligence* app rather than a form with a database.
 ---
 
 ## Phase 5 — The Autonomous AI Coach ⭐⭐
-**~Week 6–8 · the centerpiece, written by hand**
+**COMPLETE** — Gemini 3 Flash via the Interactions API
+
+> **Finding worth keeping.** Google replaced `generateContent` with the Interactions API partway through this phase — different call, different response shape, server-side conversation state. Because `app/llm.py` sits between the SDK and the agent, the rewrite touched one file. `app/agent.py` did not change.
 
 Critical distinction: this is **not** "stuff data into a prompt." A real agent decides *which* data it needs and fetches it via tool calls.
 

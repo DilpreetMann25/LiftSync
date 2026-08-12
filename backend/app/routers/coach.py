@@ -9,7 +9,7 @@ from sqlalchemy.engine import Connection
 from app.agent import run_coach
 from app.db import get_connection
 from app.dependencies import get_current_user
-from app.llm import get_provider
+from app.llm import LLMProvider, get_provider
 from app.schemas import CoachQuestion, CoachResponse
 
 logger = logging.getLogger(__name__)
@@ -17,11 +17,31 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/coach", tags=["coach"])
 
 
+def provider_dependency() -> LLMProvider:
+    """Supply the configured LLM provider.
+
+    A FastAPI dependency rather than a direct call, so tests can swap
+    in FakeProvider via app.dependency_overrides. Without this seam,
+    testing the coach would mean real network calls -- slow, costly,
+    and non-deterministic.
+    """
+    try:
+        return get_provider()
+    except RuntimeError as exc:
+        # Missing API key or bad config. 503, not 500: the service is
+        # unavailable, the request was not wrong.
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"AI coach is not configured: {exc}",
+        ) from exc
+
+
 @router.post("/ask", response_model=CoachResponse)
 def ask_coach(
     payload: CoachQuestion,
     conn: Connection = Depends(get_connection),
     current_user: dict = Depends(get_current_user),
+    provider: LLMProvider = Depends(provider_dependency),
 ) -> dict:
     """Ask the coach a question about your training.
 
@@ -33,16 +53,6 @@ def ask_coach(
     seconds. That is the cost of letting it investigate rather than
     guess.
     """
-    try:
-        provider = get_provider()
-    except RuntimeError as exc:
-        # Missing API key or bad config. 503, not 500: the service is
-        # unavailable, the request was not wrong.
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"AI coach is not configured: {exc}",
-        ) from exc
-
     try:
         return run_coach(conn, current_user["id"], payload.question, provider)
 
