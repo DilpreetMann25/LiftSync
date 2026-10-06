@@ -8,6 +8,12 @@
 
 set -euo pipefail
 
+# When SSM runs this script (from GitHub Actions), it starts with a
+# minimal PATH that may not include /snap/bin, where the AWS CLI lives.
+# Over SSH the login shell sets it up, so the problem would only ever
+# appear in the automated deploy -- the worst place to discover it.
+export PATH="$PATH:/snap/bin"
+
 APP_USER=liftsync
 APP_DIR=/opt/liftsync/app
 VENV=/opt/liftsync/venv
@@ -20,11 +26,16 @@ as_app() { sudo -u "$APP_USER" -H "$@"; }
 
 [ "$(id -u)" -eq 0 ] || { echo "Run as root: sudo bash $0" >&2; exit 1; }
 
-log "Code: origin/$BRANCH"
+# REF lets the pipeline pin the exact commit whose tests passed. Without
+# it, two quick pushes could make the first deploy pick up the second,
+# untested commit. Run by hand, it defaults to the latest main.
+REF="${REF:-origin/$BRANCH}"
+
+log "Code: $REF"
 # reset --hard, not pull: the server's copy is disposable and must match
 # GitHub exactly. Never edit code on the server -- it will be overwritten.
 as_app git -C "$APP_DIR" fetch --quiet origin "$BRANCH"
-as_app git -C "$APP_DIR" reset --quiet --hard "origin/$BRANCH"
+as_app git -C "$APP_DIR" reset --quiet --hard "$REF"
 echo "At commit: $(as_app git -C "$APP_DIR" log -1 --format='%h %s')"
 
 log "Python dependencies"

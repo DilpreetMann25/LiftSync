@@ -43,6 +43,8 @@ The database has no public IP. Its hostname resolves to a private `172.31.x.x` a
 | Elastic IP | `liftsync-eip` | `44.215.19.13`, attached to `liftsync-api`. **Bills even when unattached — release at teardown.** | ✅ 2026-10-06 |
 | TLS certificate | Let's Encrypt | `44-215-19-13.sslip.io`; webroot, auto-renewed by `certbot.timer`, reloads Nginx via deploy hook | ✅ 2026-10-06 |
 | IAM role | `liftsync-ec2-role` | `AmazonSSMManagedInstanceCore` + inline `liftsync-read-parameters` (Get* on `/liftsync/*` only). Attached to `liftsync-api`. | ✅ verified 2026-10-06 |
+| OIDC identity provider | `token.actions.githubusercontent.com` | Lets AWS verify tokens signed by GitHub Actions | ⬜ |
+| IAM role | `liftsync-github-deploy` | Trust: only `repo:DilpreetMann25/LiftSync:ref:refs/heads/main`. Inline `liftsync-run-deploy`: `ssm:SendCommand` on `liftsync-api` only | ⬜ |
 | SSM parameters | `/liftsync/*` | SecureString: `DATABASE_URL`, `JWT_SECRET_KEY`, `GEMINI_API_KEY` · String: `ENVIRONMENT`, `LLM_PROVIDER`, `AI_MODEL`, `DOMAIN` · Standard tier, `alias/aws/ssm` | ✅ created 2026-10-05 |
 
 The RDS master password lives in the Passwords app, not in this repo. If lost, reset it via RDS → Modify.
@@ -135,7 +137,8 @@ Order matters: things that depend on others go first.
    - **Uncheck "retain automated backups"**.
 4. **Security groups** → delete `liftsync-ec2-sg` and `liftsync-rds-sg`.
 5. **SSM Parameter Store** → delete everything under `/liftsync/`.
-6. **IAM** → delete role `liftsync-ec2-role`.
+6. **IAM** → delete roles `liftsync-ec2-role` and `liftsync-github-deploy`, then **Identity providers** → delete `token.actions.githubusercontent.com`. Free, but a leftover trust relationship is a security liability. IAM is global, so the tag search in step 8 may not list these.
+   Then on GitHub: remove the deploy job from `ci.yml` (or it fails on every push) and delete the three Actions variables.
 7. **EC2 → Key pairs** → delete `liftsync-key`.
 8. **Resource Groups → Tag Editor** → search `project = Liftsync` in us-east-1. Expect zero results.
 9. Next day: **Billing → Bills** forecast should be $0.00.
