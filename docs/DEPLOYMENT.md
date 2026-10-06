@@ -70,6 +70,8 @@ sudo bash /opt/liftsync/app/deploy/deploy.sh
 
 **Every deploy after that:** `sudo bash /opt/liftsync/app/deploy/deploy.sh`
 
+**First production deploy: 2026-10-06**, commit `5b0ded3`. Migrations 0001–0003 applied to RDS; health check returned `{"status":"ok","database":"reachable","environment":"production"}`.
+
 **Layout on the server:**
 
 ```

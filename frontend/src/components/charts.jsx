@@ -26,6 +26,13 @@ const AXIS = {
   axisLine: false,
 };
 
+/** 15000 -> "15k", 2500 -> "2.5k", 800 -> "800". For axis ticks only. */
+function compactNumber(value) {
+  if (Math.abs(value) < 1000) return String(value);
+  const thousands = value / 1000;
+  return `${Number.isInteger(thousands) ? thousands : thousands.toFixed(1)}k`;
+}
+
 /** A tooltip that matches the app rather than Recharts' white default. */
 function DarkTooltip({ active, payload, label, formatter }) {
   if (!active || !payload?.length) return null;
@@ -101,7 +108,10 @@ export function VolumeBarChart({ data, height = 240, formatter }) {
       <BarChart data={data} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
         <CartesianGrid stroke="#232830" vertical={false} />
         <XAxis dataKey="label" {...AXIS} />
-        <YAxis {...AXIS} width={44} />
+        {/* Weekly volume runs to five digits, which overflows a narrow
+            axis and gets clipped. 15000 -> 15k keeps every label short;
+            the tooltip still shows the exact figure. */}
+        <YAxis {...AXIS} width={44} tickFormatter={compactNumber} />
         <Tooltip
           content={<DarkTooltip formatter={formatter} />}
           cursor={{ fill: "#171b21" }}
