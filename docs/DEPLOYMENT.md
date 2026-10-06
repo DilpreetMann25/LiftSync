@@ -1,0 +1,121 @@
+# Deployment — AWS
+
+Region: **us-east-1** (N. Virginia). Every resource carries the tag **`project = Liftsync`** (tags are case-sensitive — keep the spelling identical).
+
+Funded by AWS credits that **expire 17 March 2027**. Tear everything down in early March, before real billing starts.
+
+---
+
+## Architecture
+
+```
+                 internet
+                    │  80 / 443
+                    ▼
+   ┌──────────── default VPC ────────────────────────┐
+   │                                                 │
+   │   EC2  (liftsync-ec2-sg)                        │
+   │   Nginx ──▶ static React build                  │
+   │         └─▶ /api → uvicorn (FastAPI, systemd)   │
+   │                    │                            │
+   │                    │ 5432, only from the EC2 SG │
+   │                    ▼                            │
+   │   RDS PostgreSQL 16 (liftsync-rds-sg)           │
+   │   public access: OFF — no public IP at all      │
+   └─────────────────────────────────────────────────┘
+```
+
+The database has no public IP. Its hostname resolves to a private `172.31.x.x` address, so nothing outside the VPC has a route to it — the security group is a second layer, not the only one.
+
+---
+
+## Resource inventory
+
+| Resource | Name | Notes | Status |
+| --- | --- | --- | --- |
+| RDS PostgreSQL 16.15 | `liftsync-db` | db.t3.micro, 20 GiB gp2, single-AZ, public access off, us-east-1b, 1-day backups | ✅ created 2026-10-05 |
+| Security group | `liftsync-rds-sg` | Single inbound rule: **5432 from `liftsync-ec2-sg`** | ✅ locked down 2026-10-05 |
+| EC2 instance | `liftsync-api` | t4g.micro (Arm), Ubuntu 24.04, 10 GiB gp3 encrypted, CPU credits **Standard** | ✅ created 2026-10-05 |
+| Security group | `liftsync-ec2-sg` | 22 from home IP; 80 and 443 from anywhere | ✅ created 2026-10-05 |
+| Key pair | `liftsync-key` | ED25519, `~/.ssh/liftsync-key.pem`, mode 400, never committed | ✅ created 2026-10-05 |
+| IAM role | `liftsync-ec2-role` | `AmazonSSMManagedInstanceCore` + inline `liftsync-read-parameters` (Get* on `/liftsync/*` only). Attached to `liftsync-api`. | ✅ verified 2026-10-06 |
+| SSM parameters | `/liftsync/*` | SecureString: `DATABASE_URL`, `JWT_SECRET_KEY`, `GEMINI_API_KEY` · String: `ENVIRONMENT`, `LLM_PROVIDER`, `AI_MODEL` · Standard tier, `alias/aws/ssm` | ✅ created 2026-10-05 |
+
+The RDS master password lives in the Passwords app, not in this repo. If lost, reset it via RDS → Modify.
+
+**SSH:** `ssh -i ~/.ssh/liftsync-key.pem ubuntu@<public-ip>`. The public IP changes if the instance is *stopped* and started (not on reboot). If SSH times out, check the instance is running and that your home IP still matches the port-22 rule.
+
+**Verified 2026-10-05:** from the EC2 box, `nc -zv <rds-endpoint> 5432` succeeds (the endpoint resolves to a private 172.31.x.x address). From a laptop, the same endpoint has no route — public access is genuinely off.
+
+---
+
+## Deploying
+
+Everything the server needs is scripted in [`deploy/`](../deploy):
+
+| File | Runs | Does |
+| --- | --- | --- |
+| `bootstrap.sh` | once per server | Packages, Node 22, swap, the `liftsync` system user, directories, RDS cert, clone |
+| `deploy.sh` | every deploy | Pull `main`, install deps, fetch secrets, migrate, build frontend, restart, health check |
+| `fetch-env.sh` | called by `deploy.sh` | Parameter Store → `/etc/liftsync/liftsync.env` (mode 640) |
+| `liftsync.service` | systemd | Runs uvicorn on 127.0.0.1:8000 as `liftsync`, restarts on crash |
+| `nginx-liftsync.conf` | Nginx | Serves the React build; proxies `/api` and `/docs` to uvicorn |
+
+**Fresh server:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/DilpreetMann25/LiftSync/main/deploy/bootstrap.sh | sudo bash
+sudo bash /opt/liftsync/app/deploy/deploy.sh
+```
+
+**Every deploy after that:** `sudo bash /opt/liftsync/app/deploy/deploy.sh`
+
+**Layout on the server:**
+
+```
+/opt/liftsync/app        git checkout — disposable, reset to origin/main on every deploy
+/opt/liftsync/venv       Python environment (outside the checkout)
+/etc/liftsync/           liftsync.env (secrets) + rds-global-bundle.pem
+/var/www/liftsync/       built frontend, served by Nginx
+```
+
+**Day-to-day:**
+
+```bash
+sudo systemctl status liftsync        # is it running?
+sudo journalctl -u liftsync -f        # live logs
+sudo journalctl -u liftsync -n 100    # last 100 lines
+```
+
+---
+
+## Approximate monthly cost
+
+| Item | ≈ USD / month |
+| --- | --- |
+| RDS db.t3.micro | 13.00 |
+| RDS storage, 20 GiB | 2.30 |
+| EC2 t4g.micro | 6.00 |
+| Public IPv4 address | 3.65 |
+| EC2 disk, ~10 GiB | 0.80 |
+| **Total** | **≈ 26** |
+
+Check **Billing → Credits** every couple of weeks. While credits cover charges the bill can read $0, so the zero-spend budget alarm may stay quiet — it guards real money, not credit burn.
+
+---
+
+## Teardown checklist (early March 2027)
+
+Order matters: things that depend on others go first.
+
+1. **EC2** → terminate `liftsync-api`. Confirm its disk (EBS volume) is deleted too.
+2. **Elastic IP** (if one was allocated) → release it. An unattached Elastic IP still bills.
+3. **RDS** → delete `liftsync-db`.
+   - Final snapshot: skip it, or take it and delete the snapshot afterwards (snapshots bill for storage).
+   - **Uncheck "retain automated backups"**.
+4. **Security groups** → delete `liftsync-ec2-sg` and `liftsync-rds-sg`.
+5. **SSM Parameter Store** → delete everything under `/liftsync/`.
+6. **IAM** → delete role `liftsync-ec2-role`.
+7. **EC2 → Key pairs** → delete `liftsync-key`.
+8. **Resource Groups → Tag Editor** → search `project = Liftsync` in us-east-1. Expect zero results.
+9. Next day: **Billing → Bills** forecast should be $0.00.

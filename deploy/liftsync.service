@@ -1,0 +1,47 @@
+# systemd unit for the LiftSync API.
+#
+# systemd is what keeps the app running: it starts it at boot, restarts
+# it if it crashes, and collects its logs. Locally you run uvicorn in a
+# terminal tab; on a server nobody is sitting at the terminal.
+#
+# Installed to /etc/systemd/system/liftsync.service by deploy.sh.
+#   status:  sudo systemctl status liftsync
+#   logs:    sudo journalctl -u liftsync -f
+
+[Unit]
+Description=LiftSync API (FastAPI / uvicorn)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=liftsync
+Group=liftsync
+WorkingDirectory=/opt/liftsync/app/backend
+
+# Secrets and config, written from Parameter Store by fetch-env.sh.
+EnvironmentFile=/etc/liftsync/liftsync.env
+
+# 127.0.0.1, not 0.0.0.0: uvicorn is reachable only from this machine.
+# The outside world goes through Nginx, never straight to Python.
+# --proxy-headers lets the app see the real client IP that Nginx forwards.
+ExecStart=/opt/liftsync/venv/bin/uvicorn app.main:app \
+    --host 127.0.0.1 --port 8000 \
+    --workers 2 \
+    --proxy-headers --forwarded-allow-ips=127.0.0.1
+
+Restart=on-failure
+RestartSec=5
+
+# --- Hardening -------------------------------------------------------
+# Each line removes something the app never needs, so a compromised
+# app has less to work with.
+NoNewPrivileges=true      # can never gain privileges, e.g. via sudo
+PrivateTmp=true           # its own private /tmp
+ProtectSystem=full        # /usr, /boot and /etc are read-only to it
+ProtectHome=true          # /home and /root are invisible to it
+ProtectKernelTunables=true
+ProtectControlGroups=true
+
+[Install]
+WantedBy=multi-user.target
