@@ -2,6 +2,8 @@
 
 Region: **us-east-1** (N. Virginia). Every resource carries the tag **`project = Liftsync`** (tags are case-sensitive — keep the spelling identical).
 
+**Live:** https://44-215-19-13.sslip.io — demo login `demo@liftsync.app` / `liftsync-demo-2026`
+
 Funded by AWS credits that **expire 17 March 2027**. Tear everything down in early March, before real billing starts.
 
 ---
@@ -38,14 +40,14 @@ The database has no public IP. Its hostname resolves to a private `172.31.x.x` a
 | EC2 instance | `liftsync-api` | t4g.micro (Arm), Ubuntu 24.04, 10 GiB gp3 encrypted, CPU credits **Standard** | ✅ created 2026-10-05 |
 | Security group | `liftsync-ec2-sg` | 22 from home IP; 80 and 443 from anywhere | ✅ created 2026-10-05 |
 | Key pair | `liftsync-key` | ED25519, `~/.ssh/liftsync-key.pem`, mode 400, never committed | ✅ created 2026-10-05 |
-| Elastic IP | `liftsync-eip` | Fixed public address for `liftsync-api`. **Bills even when unattached — release at teardown.** | ⬜ |
-| TLS certificate | Let's Encrypt | For `<ip-with-dashes>.sslip.io`; auto-renewed by `certbot.timer` | ⬜ |
+| Elastic IP | `liftsync-eip` | `44.215.19.13`, attached to `liftsync-api`. **Bills even when unattached — release at teardown.** | ✅ 2026-10-06 |
+| TLS certificate | Let's Encrypt | `44-215-19-13.sslip.io`; webroot, auto-renewed by `certbot.timer`, reloads Nginx via deploy hook | ✅ 2026-10-06 |
 | IAM role | `liftsync-ec2-role` | `AmazonSSMManagedInstanceCore` + inline `liftsync-read-parameters` (Get* on `/liftsync/*` only). Attached to `liftsync-api`. | ✅ verified 2026-10-06 |
 | SSM parameters | `/liftsync/*` | SecureString: `DATABASE_URL`, `JWT_SECRET_KEY`, `GEMINI_API_KEY` · String: `ENVIRONMENT`, `LLM_PROVIDER`, `AI_MODEL`, `DOMAIN` · Standard tier, `alias/aws/ssm` | ✅ created 2026-10-05 |
 
 The RDS master password lives in the Passwords app, not in this repo. If lost, reset it via RDS → Modify.
 
-**SSH:** `ssh -i ~/.ssh/liftsync-key.pem ubuntu@<public-ip>`. The public IP changes if the instance is *stopped* and started (not on reboot). If SSH times out, check the instance is running and that your home IP still matches the port-22 rule.
+**SSH:** `ssh -i ~/.ssh/liftsync-key.pem ubuntu@44.215.19.13`. The Elastic IP survives stops and starts. If SSH times out, check the instance is running and that your home IP still matches the port-22 rule — home IPs change.
 
 **Verified 2026-10-05:** from the EC2 box, `nc -zv <rds-endpoint> 5432` succeeds (the endpoint resolves to a private 172.31.x.x address). From a laptop, the same endpoint has no route — public access is genuinely off.
 

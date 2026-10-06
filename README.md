@@ -4,6 +4,8 @@
 
 AI-driven strength and nutrition tracking. Logs training, correlates macronutrient intake with lifting performance, and uses an LLM agent that queries the database directly to diagnose plateaus and generate corrective programming blocks.
 
+**Live demo: https://44-215-19-13.sslip.io** — click *Explore the demo account*, or sign in with `demo@liftsync.app` / `liftsync-demo-2026`. API docs at [`/docs`](https://44-215-19-13.sslip.io/docs).
+
 Built as a portfolio project demonstrating relational schema design, REST API development, agentic AI integration, and cloud deployment.
 
 ---
@@ -17,7 +19,7 @@ Built as a portfolio project demonstrating relational schema design, REST API de
 | Auth | JWT (PyJWT), bcrypt password hashing |
 | Frontend | React, Tailwind CSS *(planned)* |
 | AI | Anthropic / OpenAI tool-calling agent *(planned)* |
-| Infrastructure | Docker Compose locally; AWS EC2 + RDS *(planned)* |
+| Infrastructure | Docker Compose locally; AWS EC2 (Graviton) + RDS PostgreSQL, Nginx, systemd, Let's Encrypt — see [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) |
 | CI/CD | GitHub Actions *(planned)* |
 
 ---
@@ -157,7 +159,7 @@ The interesting decisions, and why:
 | 3 — Analytics layer (e1RM, plateau detection) | Complete |
 | 4 — React frontend | Complete |
 | 5 — Autonomous AI coach | Complete |
-| 6 — AWS deployment (EC2 + RDS) | Not started |
+| 6 — AWS deployment (EC2 + RDS) | Live over HTTPS · auto-deploy in progress |
 | 7 — CI/CD and polish | CI complete |
 
 57 tests, no network calls, running on every push.
