@@ -28,8 +28,10 @@ log() { printf '\n==> %s\n' "$*"; }
 
 log "System packages"
 apt-get update -qq
+# certbot: free TLS certificates from Let's Encrypt, auto-renewed.
+# gettext-base: provides envsubst, used to fill in the HTTPS template.
 DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
-  python3-venv git nginx postgresql-client rsync curl
+  python3-venv git nginx postgresql-client rsync curl certbot gettext-base
 
 log "Node.js 22"
 # Ubuntu 24.04's own nodejs package is v18, which is too old for
@@ -68,6 +70,8 @@ log "Directories"
 install -d -m 750 -o root -g "$APP_USER" /etc/liftsync
 # Nginx serves the built frontend from here.
 install -d -m 755 /var/www/liftsync
+# Let's Encrypt's domain-ownership check files are served from here.
+install -d -m 755 /var/www/certbot
 
 log "RDS certificate bundle"
 if [ ! -f /etc/liftsync/rds-global-bundle.pem ]; then

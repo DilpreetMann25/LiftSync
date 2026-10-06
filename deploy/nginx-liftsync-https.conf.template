@@ -1,0 +1,56 @@
+# LiftSync over HTTPS.
+#
+# A template: deploy.sh replaces ${DOMAIN} with the value of
+# /liftsync/DOMAIN from Parameter Store, using `envsubst '${DOMAIN}'`.
+# Only that one variable is substituted, so Nginx's own variables like
+# $host and $request_uri pass through untouched.
+#
+# The certificate is obtained once with certbot (see docs/DEPLOYMENT.md)
+# and renewed automatically by certbot's systemd timer. Certbot never
+# edits this file; it only places certificates under /etc/letsencrypt.
+#
+# Installed to /etc/nginx/sites-available/liftsync by deploy.sh.
+
+# ---- Port 80: certificate checks, otherwise redirect -----------------
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
+
+    # Renewals still need this over plain HTTP.
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    # Everything else goes to HTTPS -- including visitors who typed the
+    # bare IP address, who end up on the proper hostname.
+    location / {
+        return 301 https://${DOMAIN}$request_uri;
+    }
+}
+
+# ---- Port 443: the actual site ----------------------------------------
+server {
+    # Ubuntu 24.04 ships Nginx 1.24, which takes http2 on the listen
+    # line. (Newer versions use a separate `http2 on;` directive.)
+    listen 443 ssl http2 default_server;
+    listen [::]:443 ssl http2 default_server;
+    server_name ${DOMAIN};
+
+    ssl_certificate     /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
+
+    # TLS 1.0 and 1.1 are broken and retired; every current browser
+    # speaks 1.2 and 1.3.
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_session_cache shared:LiftSyncSSL:10m;
+    ssl_session_timeout 1d;
+
+    # HSTS tells browsers "only ever use HTTPS for this host". Kept to a
+    # single day on purpose: this hostname is derived from an IP address
+    # that goes back to AWS at teardown, and a long HSTS would follow
+    # whoever gets the address next. With a real domain you'd raise it.
+    add_header Strict-Transport-Security "max-age=86400" always;
+
+    include /etc/nginx/snippets/liftsync-locations.conf;
+}

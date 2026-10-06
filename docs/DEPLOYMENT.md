@@ -38,8 +38,10 @@ The database has no public IP. Its hostname resolves to a private `172.31.x.x` a
 | EC2 instance | `liftsync-api` | t4g.micro (Arm), Ubuntu 24.04, 10 GiB gp3 encrypted, CPU credits **Standard** | ✅ created 2026-10-05 |
 | Security group | `liftsync-ec2-sg` | 22 from home IP; 80 and 443 from anywhere | ✅ created 2026-10-05 |
 | Key pair | `liftsync-key` | ED25519, `~/.ssh/liftsync-key.pem`, mode 400, never committed | ✅ created 2026-10-05 |
+| Elastic IP | `liftsync-eip` | Fixed public address for `liftsync-api`. **Bills even when unattached — release at teardown.** | ⬜ |
+| TLS certificate | Let's Encrypt | For `<ip-with-dashes>.sslip.io`; auto-renewed by `certbot.timer` | ⬜ |
 | IAM role | `liftsync-ec2-role` | `AmazonSSMManagedInstanceCore` + inline `liftsync-read-parameters` (Get* on `/liftsync/*` only). Attached to `liftsync-api`. | ✅ verified 2026-10-06 |
-| SSM parameters | `/liftsync/*` | SecureString: `DATABASE_URL`, `JWT_SECRET_KEY`, `GEMINI_API_KEY` · String: `ENVIRONMENT`, `LLM_PROVIDER`, `AI_MODEL` · Standard tier, `alias/aws/ssm` | ✅ created 2026-10-05 |
+| SSM parameters | `/liftsync/*` | SecureString: `DATABASE_URL`, `JWT_SECRET_KEY`, `GEMINI_API_KEY` · String: `ENVIRONMENT`, `LLM_PROVIDER`, `AI_MODEL`, `DOMAIN` · Standard tier, `alias/aws/ssm` | ✅ created 2026-10-05 |
 
 The RDS master password lives in the Passwords app, not in this repo. If lost, reset it via RDS → Modify.
 
@@ -59,7 +61,9 @@ Everything the server needs is scripted in [`deploy/`](../deploy):
 | `deploy.sh` | every deploy | Pull `main`, install deps, fetch secrets, migrate, build frontend, restart, health check |
 | `fetch-env.sh` | called by `deploy.sh` | Parameter Store → `/etc/liftsync/liftsync.env` (mode 640) |
 | `liftsync.service` | systemd | Runs uvicorn on 127.0.0.1:8000 as `liftsync`, restarts on crash |
-| `nginx-liftsync.conf` | Nginx | Serves the React build; proxies `/api` and `/docs` to uvicorn |
+| `nginx-locations.conf` | Nginx | Shared routes: React build, `/api` and `/docs` proxied to uvicorn |
+| `nginx-liftsync.conf` | Nginx | HTTP-only site, used until a certificate exists |
+| `nginx-liftsync-https.conf.template` | Nginx | HTTPS site; `deploy.sh` fills in `${DOMAIN}` and uses it once the certificate exists |
 
 **Fresh server:**
 
@@ -80,6 +84,18 @@ sudo bash /opt/liftsync/app/deploy/deploy.sh
 /etc/liftsync/           liftsync.env (secrets) + rds-global-bundle.pem
 /var/www/liftsync/       built frontend, served by Nginx
 ```
+
+**HTTPS (one-time, after `/liftsync/DOMAIN` is set and one deploy has run):**
+
+```bash
+sudo certbot certonly --webroot -w /var/www/certbot -d "$DOMAIN" \
+  --register-unsafely-without-email --agree-tos \
+  --deploy-hook "systemctl reload nginx"
+sudo bash /opt/liftsync/app/deploy/deploy.sh   # now picks the HTTPS config
+sudo certbot renew --dry-run                   # proves renewal will work
+```
+
+Certbot only places certificates in `/etc/letsencrypt`; it never edits Nginx config, so deploys can't undo HTTPS. Renewal runs twice a day via `certbot.timer`, and the deploy hook reloads Nginx when a new certificate lands.
 
 **Day-to-day:**
 

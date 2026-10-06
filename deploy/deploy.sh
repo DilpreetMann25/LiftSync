@@ -56,7 +56,21 @@ rsync -a --delete "$APP_DIR/frontend/dist/" "$WEB_ROOT/"
 
 log "Service and Nginx config"
 install -m 644 "$APP_DIR/deploy/liftsync.service" /etc/systemd/system/liftsync.service
-install -m 644 "$APP_DIR/deploy/nginx-liftsync.conf" /etc/nginx/sites-available/liftsync
+install -m 644 "$APP_DIR/deploy/nginx-locations.conf" /etc/nginx/snippets/liftsync-locations.conf
+
+# HTTPS if a certificate exists for the configured hostname, plain HTTP
+# otherwise. A fresh server therefore deploys cleanly before certbot has
+# ever run, and certbot never has to edit a file this script overwrites.
+DOMAIN="$(sed -n 's/^DOMAIN=//p' "$ENV_FILE")"
+if [ -n "$DOMAIN" ] && [ -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
+  DOMAIN="$DOMAIN" envsubst '${DOMAIN}' \
+    < "$APP_DIR/deploy/nginx-liftsync-https.conf.template" \
+    > /etc/nginx/sites-available/liftsync
+  echo "Nginx: HTTPS for $DOMAIN"
+else
+  install -m 644 "$APP_DIR/deploy/nginx-liftsync.conf" /etc/nginx/sites-available/liftsync
+  echo "Nginx: HTTP only (no certificate yet for '${DOMAIN:-DOMAIN not set}')"
+fi
 ln -sf /etc/nginx/sites-available/liftsync /etc/nginx/sites-enabled/liftsync
 systemctl daemon-reload
 systemctl enable --quiet liftsync
