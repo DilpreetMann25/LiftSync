@@ -115,6 +115,15 @@ sudo journalctl -u liftsync -n 100    # last 100 lines
 
 ---
 
+## Account security
+
+- **Root** has MFA and is not used day to day — only for account-level tasks (closing the account, payment method).
+- **Everyday login:** `Admin_User` at `https://815935788960.signin.aws.amazon.com/console`, with MFA. `AdministratorAccess` comes from the `administrators` group, not a direct attachment.
+- **No IAM access keys exist.** The server authenticates with its instance role, GitHub with OIDC, and humans through the console. Nothing needs a long-lived key, so none is created.
+- IAM users can see Billing (enabled under Account → *IAM user and role access to Billing information*).
+
+---
+
 ## Approximate monthly cost
 
 | Item | ≈ USD / month |
