@@ -18,7 +18,10 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Pinned, not ubuntu-latest: "latest" moves to a new Ubuntu release
+    # on GitHub's schedule, not yours. 24.04 also matches the production
+    # server -- the same parity rule as PostgreSQL 16 and Python 3.12.
+    runs-on: ubuntu-24.04
 
     # A SERVICE CONTAINER: GitHub starts Postgres alongside the job,
     # the same way docker-compose.yml does locally. Same image, same
@@ -58,10 +61,10 @@ jobs:
 
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           # Cache pip downloads between runs, keyed on requirements.txt.
@@ -108,7 +111,7 @@ jobs:
     needs: test   # never deploy code whose tests failed
     # Pushes to main only. Pull requests run the tests and stop here.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     # Two quick pushes would otherwise start two deploys at once, both
     # running migrations and restarting the service. This queues them.
@@ -137,7 +140,7 @@ jobs:
       # Names can be reused after a rename or deletion; IDs never are, so
       # a lookalike repo can't inherit this role ("repo-jacking").
       - name: Get temporary AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: us-east-1
