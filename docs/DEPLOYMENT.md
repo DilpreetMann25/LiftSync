@@ -12,7 +12,7 @@ Funded by AWS credits that **expire 17 March 2027**. Tear everything down in ear
 
 ```
                  internet
-                    │  80 / 443
+                    │  80 / 443 only — no SSH port
                     ▼
    ┌──────────── default VPC ────────────────────────┐
    │                                                 │
@@ -38,7 +38,7 @@ The database has no public IP. Its hostname resolves to a private `172.31.x.x` a
 | RDS PostgreSQL 16.15 | `liftsync-db` | db.t3.micro, 20 GiB gp2, single-AZ, public access off, us-east-1b, 1-day backups | ✅ created 2026-10-05 |
 | Security group | `liftsync-rds-sg` | Single inbound rule: **5432 from `liftsync-ec2-sg`** | ✅ locked down 2026-10-05 |
 | EC2 instance | `liftsync-api` | t4g.micro (Arm), Ubuntu 24.04, 10 GiB gp3 encrypted, CPU credits **Standard** | ✅ created 2026-10-05 |
-| Security group | `liftsync-ec2-sg` | 22 from home IP; 80 and 443 from anywhere | ✅ created 2026-10-05 |
+| Security group | `liftsync-ec2-sg` | **80 and 443 only.** Port 22 removed 2026-10-06 — shell access is via Session Manager | ✅ locked down 2026-10-06 |
 | Key pair | `liftsync-key` | ED25519, `~/.ssh/liftsync-key.pem`, mode 400, never committed | ✅ created 2026-10-05 |
 | Elastic IP | `liftsync-eip` | `44.215.19.13`, attached to `liftsync-api`. **Bills even when unattached — release at teardown.** | ✅ 2026-10-06 |
 | TLS certificate | Let's Encrypt | `44-215-19-13.sslip.io`; webroot, auto-renewed by `certbot.timer`, reloads Nginx via deploy hook | ✅ 2026-10-06 |
@@ -49,7 +49,9 @@ The database has no public IP. Its hostname resolves to a private `172.31.x.x` a
 
 The RDS master password lives in the Passwords app, not in this repo. If lost, reset it via RDS → Modify.
 
-**SSH:** `ssh -i ~/.ssh/liftsync-key.pem ubuntu@44.215.19.13`. The Elastic IP survives stops and starts. If SSH times out, check the instance is running and that your home IP still matches the port-22 rule — home IPs change.
+**Shell access:** EC2 → Instances → `liftsync-api` → **Connect → Session Manager**. You arrive as `ssm-user`; run `sudo su - ubuntu`. No open port and no key file: access is your AWS login (with MFA), and every session is recorded in CloudTrail.
+
+**SSH is closed** — no inbound rule for port 22. To reopen in an emergency, add a port-22 rule for your current IP to `liftsync-ec2-sg`; `~/.ssh/liftsync-key.pem` still works. Remove the rule again afterwards.
 
 **Verified 2026-10-05:** from the EC2 box, `nc -zv <rds-endpoint> 5432` succeeds (the endpoint resolves to a private 172.31.x.x address). From a laptop, the same endpoint has no route — public access is genuinely off.
 

@@ -159,8 +159,8 @@ The interesting decisions, and why:
 | 3 — Analytics layer (e1RM, plateau detection) | Complete |
 | 4 — React frontend | Complete |
 | 5 — Autonomous AI coach | Complete |
-| 6 — AWS deployment (EC2 + RDS) | Live over HTTPS · auto-deploy in progress |
-| 7 — CI/CD and polish | CI complete |
+| 6 — AWS deployment (EC2 + RDS) | Complete — HTTPS, auto-deploy via OIDC + SSM, no SSH |
+| 7 — CI/CD and polish | CI/CD complete · polish ongoing |
 
 57 tests, no network calls, running on every push.
 

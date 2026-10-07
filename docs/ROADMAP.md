@@ -133,7 +133,12 @@ Critical distinction: this is **not** "stuff data into a prompt." A real agent d
 ---
 
 ## Phase 6 — AWS Deployment
-**~Week 8–10**
+**COMPLETE** — live at https://44-215-19-13.sslip.io. Full record in [`DEPLOYMENT.md`](DEPLOYMENT.md).
+
+> **Findings worth keeping.**
+> - The RDS "Dev/Test" template defaulted to a $146/month configuration. Checking the cost estimate before clicking Create brought it to ~$15.
+> - GitHub's OIDC `sub` claim now includes immutable owner and repo IDs; the AWS console wizard generated the old names-only format, so the first auto-deploy was refused. Printing the token's real claims found it in one run.
+> - Proved Session Manager worked *before* closing port 22, so there was never a moment without access.
 
 The part most portfolio projects skip.
 
