@@ -105,6 +105,12 @@ sudo certbot renew --dry-run                   # proves renewal will work
 
 Certbot only places certificates in `/etc/letsencrypt`; it never edits Nginx config, so deploys can't undo HTTPS. Renewal runs twice a day via `certbot.timer`, and the deploy hook reloads Nginx when a new certificate lands.
 
+**Refresh the demo account.** The seeded workouts are dated relative to when the script ran, so after a few weeks "the last 3 weeks" contains no training and the plateau card disappears. Re-seed from a Session Manager shell:
+
+```bash
+sudo systemd-run --quiet --wait --pipe --collect --uid=liftsync --gid=liftsync -p EnvironmentFile=/etc/liftsync/liftsync.env -p WorkingDirectory=/opt/liftsync/app/backend /opt/liftsync/venv/bin/python scripts/seed_dev_data.py
+```
+
 **Day-to-day:**
 
 ```bash

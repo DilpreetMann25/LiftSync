@@ -1,5 +1,17 @@
 # LiftSync — Build Roadmap
 
+> ## ▶ Where to pick up
+>
+> **Phases 1–6 are complete and the app is live** at https://44-215-19-13.sslip.io. Releasing is `git push` to `main`.
+>
+> **Next, in suggested order:**
+> 1. **Nutrition and bodyweight screens** — the spec's macro-to-performance feature has data, analytics and AI-coach support, but no UI to log or view it. The one visible gap between spec and app.
+> 2. **Rate-limit `/api/v1/coach/ask`** so public demo visitors can't exhaust the Gemini free quota.
+> 3. **Code-split the frontend bundle** (lazy-load Progress and Coach) to clear the 500 kB build warning.
+> 4. **README screenshots** of the dashboard and the coach.
+>
+> **Housekeeping:** check AWS *Billing → Credits* every couple of weeks · re-seed the demo account if the plateau card has disappeared (command in `DEPLOYMENT.md`) · **tear down in early March 2027** using the checklist in `DEPLOYMENT.md`.
+
 **Stack (locked):** React + Tailwind · Python/FastAPI · PostgreSQL · AWS (EC2 + RDS) · OpenAI or Anthropic API · GitHub Actions
 
 **Level:** Comfortable coding, new to cloud/DB
