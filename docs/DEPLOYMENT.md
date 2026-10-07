@@ -43,8 +43,8 @@ The database has no public IP. Its hostname resolves to a private `172.31.x.x` a
 | Elastic IP | `liftsync-eip` | `44.215.19.13`, attached to `liftsync-api`. **Bills even when unattached — release at teardown.** | ✅ 2026-10-06 |
 | TLS certificate | Let's Encrypt | `44-215-19-13.sslip.io`; webroot, auto-renewed by `certbot.timer`, reloads Nginx via deploy hook | ✅ 2026-10-06 |
 | IAM role | `liftsync-ec2-role` | `AmazonSSMManagedInstanceCore` + inline `liftsync-read-parameters` (Get* on `/liftsync/*` only). Attached to `liftsync-api`. | ✅ verified 2026-10-06 |
-| OIDC identity provider | `token.actions.githubusercontent.com` | Lets AWS verify tokens signed by GitHub Actions | ⬜ |
-| IAM role | `liftsync-github-deploy` | Trust: only `repo:DilpreetMann25/LiftSync:ref:refs/heads/main`. Inline `liftsync-run-deploy`: `ssm:SendCommand` on `liftsync-api` only | ⬜ |
+| OIDC identity provider | `token.actions.githubusercontent.com` | Lets AWS verify tokens signed by GitHub Actions | ✅ 2026-10-06 |
+| IAM role | `liftsync-github-deploy` | Trust (`StringEquals`): `repo:DilpreetMann25@195808269/LiftSync@1312326376:ref:refs/heads/main` — GitHub's sub includes immutable owner/repo IDs, so a recreated lookalike repo can't assume it. Inline `liftsync-run-deploy`: `ssm:SendCommand` on `liftsync-api` only | ✅ first auto-deploy 2026-10-06 |
 | SSM parameters | `/liftsync/*` | SecureString: `DATABASE_URL`, `JWT_SECRET_KEY`, `GEMINI_API_KEY` · String: `ENVIRONMENT`, `LLM_PROVIDER`, `AI_MODEL`, `DOMAIN` · Standard tier, `alias/aws/ssm` | ✅ created 2026-10-05 |
 
 The RDS master password lives in the Passwords app, not in this repo. If lost, reset it via RDS → Modify.
@@ -76,7 +76,9 @@ curl -fsSL https://raw.githubusercontent.com/DilpreetMann25/LiftSync/main/deploy
 sudo bash /opt/liftsync/app/deploy/deploy.sh
 ```
 
-**Every deploy after that:** `sudo bash /opt/liftsync/app/deploy/deploy.sh`
+**Every deploy after that is automatic.** Push to `main` → GitHub Actions runs the tests → if green, the `deploy` job gets temporary AWS credentials via OIDC and uses SSM to run `REF=<tested commit> bash deploy.sh` on the server → smoke-tests the public URL. No AWS keys are stored in GitHub and no inbound port is used. See `.github/workflows/ci.yml`.
+
+To deploy by hand (e.g. after changing a parameter in Parameter Store): `sudo bash /opt/liftsync/app/deploy/deploy.sh` on the server, or **Re-run jobs** on the latest green run in GitHub Actions.
 
 **First production deploy: 2026-10-06**, commit `5b0ded3`. Migrations 0001–0003 applied to RDS; health check returned `{"status":"ok","database":"reachable","environment":"production"}`.
 
